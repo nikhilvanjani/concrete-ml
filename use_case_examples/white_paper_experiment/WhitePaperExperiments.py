@@ -146,7 +146,7 @@ class Fp32MNIST(torch.nn.Module):
 
 # In[4]:
 
-
+print('check 0')
 g = torch.Generator()
 g.manual_seed(SEED)
 np.random.seed(SEED)
@@ -189,6 +189,7 @@ test_loader = torch.utils.data.DataLoader(
 )
 
 plot_dataset(train_loader)
+print('check 1')
 
 
 # ## Model architecture
@@ -200,6 +201,7 @@ plot_dataset(train_loader)
 
 fp32_mnist = Fp32MNIST(nb_layers=20).to(DEVICE)
 print(fp32_mnist)
+print('check 2')
 
 
 # ## Benchmark the models
@@ -218,46 +220,61 @@ data_calibration = next(iter(train_loader))[0]
 
 results_cml = {}
 
-for nb_layers in [20, 50]:
+print('check 3')
+def run_nn(nb_layers, inputs_encryption_status):
+    print('check 3.1')
 
     fp32_mnist = Fp32MNIST(nb_layers=nb_layers).to(DEVICE)
 
+    print('check 3.2')
     checkpoint = torch.load(
         f"./checkpoints/MNIST/MLP_{nb_layers}/fp32/MNIST_fp32_state_dict.pt", map_location=DEVICE
     )
+    print('check 3.2')
     fp32_mnist.load_state_dict(checkpoint)
+    print('check 3.4')
     fp32_mnist.eval()
 
+    print('check 3.5')
     acc_test = torch_inference(fp32_mnist, test_loader, device=DEVICE)
 
     # The model is compiled through 'compile_torch_model' method
     # We use approximate rounding and a p_error value of 0.1
     # These values work well for neural networks which are robust to noise
     # in the computation of intermediate values.
+    print('check 3.6')
     q_module = compile_torch_model(
         fp32_mnist.to(DEVICE),
         torch_inputset=data_calibration,
         n_bits=6,
         rounding_threshold_bits={"n_bits": 6, "method": "APPROXIMATE"},
         p_error=0.1,
+        inputs_encryption_status=inputs_encryption_status
     )
 
     fhe_timing = []
     y_predictions = []
     fhe_samples = 3
 
+    print('check 3.7: test_loader len = {}'.format(len(test_loader)))
     # The model is evaluated through all the test data-set in 'simulation' mode
     for i, (data, labels) in enumerate(test_loader):
 
+        print('check 3.7.1')
         data, labels = data.detach().cpu().numpy(), labels.detach().cpu().numpy()
+        print('check 3.7.2')
         simulate_predictions = q_module.forward(data, fhe="simulate")
+        print('check 3.7.3')
         y_predictions.extend(simulate_predictions.argmax(1) == labels)
+        print('check 3.7.4')
 
         # Measure FHE latency on three samples and take the minimum
         if i <= fhe_samples:
             start_time = time.time()
             q_module.forward(data[0, None], fhe="execute")
-            fhe_timing.append((time.time() - start_time))
+            tmp_time = time.time() - start_time
+            fhe_timing.append(tmp_time)
+            print('check 3.7.5: fhe time: {}'.format(tmp_time))
 
     results_cml[nb_layers] = [acc_test, np.mean(y_predictions), np.min(fhe_timing)]
 
@@ -268,6 +285,14 @@ for nb_layers in [20, 50]:
         f"FHE Latency on encrypted data : {results_cml[nb_layers][2]:.3f}s per encrypted sample.\n"
         f"Number of PBS: {q_module.fhe_circuit.statistics['programmable_bootstrap_count']}"
     )
+
+# In ipynb file, inputs_encryption_status is not set and defaults to 'encrypted'
+# run_nn(20, ('encrypted',))
+# run_nn(50, ('encrypted',))
+
+# Benchmarking inputs_encryption_status=['clear'] since we will use this for Functional Adaptor Signature Application.
+run_nn(20, ('clear',))
+# run_nn(50, ('clear',))
 
 
 # ## Conclusion
