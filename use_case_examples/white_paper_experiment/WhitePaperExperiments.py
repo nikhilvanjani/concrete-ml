@@ -188,7 +188,7 @@ test_loader = torch.utils.data.DataLoader(
     generator=g,
 )
 
-plot_dataset(train_loader)
+# plot_dataset(train_loader)
 print('check 1')
 
 
@@ -230,8 +230,12 @@ def run_nn(nb_layers, inputs_encryption_status):
     checkpoint = torch.load(
         f"./checkpoints/MNIST/MLP_{nb_layers}/fp32/MNIST_fp32_state_dict.pt", map_location=DEVICE
     )
-    print('check 3.2')
+    print('checkpoint:')
+    # print(checkpoint)
+    print('check 3.3')
     fp32_mnist.load_state_dict(checkpoint)
+    # print(fp32_mnist.weight)
+    # print(fp32_mnist.state_dict())
     print('check 3.4')
     fp32_mnist.eval()
 
@@ -257,41 +261,42 @@ def run_nn(nb_layers, inputs_encryption_status):
     fhe_samples = 3
 
     print('check 3.7: test_loader len = {}'.format(len(test_loader)))
-    # The model is evaluated through all the test data-set in 'simulation' mode
-    for i, (data, labels) in enumerate(test_loader):
+    # # The model is evaluated through all the test data-set in 'simulation' mode
+    # for i, (data, labels) in enumerate(test_loader):
 
-        print('check 3.7.1')
-        data, labels = data.detach().cpu().numpy(), labels.detach().cpu().numpy()
-        print('check 3.7.2')
-        simulate_predictions = q_module.forward(data, fhe="simulate")
-        print('check 3.7.3')
-        y_predictions.extend(simulate_predictions.argmax(1) == labels)
-        print('check 3.7.4')
+    #     print('check 3.7.1')
+    #     data, labels = data.detach().cpu().numpy(), labels.detach().cpu().numpy()
+    #     print('check 3.7.2')
+    #     simulate_predictions = q_module.forward(data, fhe="simulate")
+    #     print('check 3.7.3')
+    #     y_predictions.extend(simulate_predictions.argmax(1) == labels)
+    #     print('check 3.7.4')
 
-        # Measure FHE latency on three samples and take the minimum
-        if i <= fhe_samples:
-            start_time = time.time()
-            q_module.forward(data[0, None], fhe="execute")
-            tmp_time = time.time() - start_time
-            fhe_timing.append(tmp_time)
-            print('check 3.7.5: fhe time: {}'.format(tmp_time))
+    #     # Measure FHE latency on three samples and take the minimum
+    #     if i <= fhe_samples:
+    #         start_time = time.time()
+    #         q_module.forward(data[0, None], fhe="execute")
+    #         tmp_time = time.time() - start_time
+    #         fhe_timing.append(tmp_time)
+    #         print('check 3.7.5: fhe time: {}'.format(tmp_time))
 
-    results_cml[nb_layers] = [acc_test, np.mean(y_predictions), np.min(fhe_timing)]
+    # results_cml[nb_layers] = [acc_test, np.mean(y_predictions), np.min(fhe_timing)]
 
-    print(
-        f"Running NN-{nb_layers} on a {MACHINE} machine:"
-        f"Accuracy in fp32 : {results_cml[nb_layers][0]:.3%} for the test set\n"
-        f"Accuracy with FHE-simulation mode : {results_cml[nb_layers][1]:.3%} for the test set\n"
-        f"FHE Latency on encrypted data : {results_cml[nb_layers][2]:.3f}s per encrypted sample.\n"
-        f"Number of PBS: {q_module.fhe_circuit.statistics['programmable_bootstrap_count']}"
-    )
+    # print(
+    #     f"Running NN-{nb_layers} on a {MACHINE} machine:"
+    #     f"Accuracy in fp32 : {results_cml[nb_layers][0]:.3%} for the test set\n"
+    #     f"Accuracy with FHE-simulation mode : {results_cml[nb_layers][1]:.3%} for the test set\n"
+    #     f"FHE Latency on encrypted data : {results_cml[nb_layers][2]:.3f}s per encrypted sample.\n"
+    #     f"Number of PBS: {q_module.fhe_circuit.statistics['programmable_bootstrap_count']}"
+    # )
 
 # In ipynb file, inputs_encryption_status is not set and defaults to 'encrypted'
-# run_nn(20, ('encrypted',))
+run_nn(20, ('encrypted',))
 # run_nn(50, ('encrypted',))
 
-# Benchmarking inputs_encryption_status=['clear'] since we will use this for Functional Adaptor Signature Application.
-run_nn(20, ('clear',))
+# We want to benchmark inputs_encryption_status=('clear',) since we will use this for Functional Adaptor Signature Application.
+# But this doesn't work since atleast of the entries in inputs_encryption_status needs to be 'encrypted'.
+# run_nn(20, ('clear',))
 # run_nn(50, ('clear',))
 
 
@@ -302,20 +307,20 @@ run_nn(20, ('clear',))
 # In[7]:
 
 
-df, fmt = format_results_df(PAPER_NOTES, results_cml, "Our m6i.metal")
-df.style.format(fmt)
+# df, fmt = format_results_df(PAPER_NOTES, results_cml, "Our m6i.metal")
+# df.style.format(fmt)
 
 
-# A pre-computed comparison to a `hpc7a.96xlarge` instance with 192 vCPU is also shown when running this notebook on a large server machine.
+# # A pre-computed comparison to a `hpc7a.96xlarge` instance with 192 vCPU is also shown when running this notebook on a large server machine.
 
-# In[8]:
-
-
-# This benchmark was done on a hpc7 machine with 192-cores
-BENCH_HPC7A = {20: [0.987, 0.959, 0.995], 50: [0.9745, 0.9477, 3.03]}
-
-df, fmt = format_results_df(PAPER_NOTES, BENCH_HPC7A, "Our hpc7a.96xlarge")
-df.style.format(fmt)
+# # In[8]:
 
 
-# As shown in the table above, on the `hpc7` instance, Concrete ML achieves a ~20x speed-up compared to the whitepaper.
+# # This benchmark was done on a hpc7 machine with 192-cores
+# BENCH_HPC7A = {20: [0.987, 0.959, 0.995], 50: [0.9745, 0.9477, 3.03]}
+
+# df, fmt = format_results_df(PAPER_NOTES, BENCH_HPC7A, "Our hpc7a.96xlarge")
+# df.style.format(fmt)
+
+
+# # As shown in the table above, on the `hpc7` instance, Concrete ML achieves a ~20x speed-up compared to the whitepaper.
